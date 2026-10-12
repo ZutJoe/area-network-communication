@@ -33,3 +33,12 @@ test/              # render.test.js（npm test）+ preview.js（npm run preview�
 
 `~/.workbuddy/skills/inline-js-to-esm/` —— 拆内联脚本的流程 + 两个校验脚本
 （`diff-moved-functions.js` 验搬运无损、`cdp-check.mjs` 不装 Playwright 实测页面）。
+
+## README 截图
+
+`docs/screenshots/` 里 4 张图是**真实界面**抓的，不是拼的：无头 Chrome + 裸 CDP 驱动，
+每个虚拟客户端各走一个注入 `x-forwarded-for` 的本地代理（server.js 认这个头），
+所以侧栏能出现多个不同 IP。注意：假 IP 会让 p2p.js 的 mDNS 候选改写失效，
+P2P 因此没法在截图环境里真跑通，只能拍卡片的初始态。
+`Browser.close` 会关掉整台浏览器，多 target 时只能 `/json/close/<id>`。
+
