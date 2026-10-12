@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>局域网通信</title>
+  <!-- KaTeX 走本地 npm 依赖，不依赖 CDN，断网/纯局域网也能渲染公式 -->
+  <link rel="stylesheet" href="/node_modules/katex/dist/katex.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; }
+    #sidebar { width: 200px; background: #f5f5f5; padding: 20px; border-right: 1px solid #ddd; }
+    #sidebar h3 { margin-bottom: 15px; font-size: 14px; color: #666; }
+    .user-item { padding: 8px; background: white; border-radius: 4px; margin-bottom: 5px; font-size: 13px; }
+    #main { flex: 1; display: flex; flex-direction: column; }
+    #messages { flex: 1; overflow-y: auto; padding: 20px; }
+    body.dragging #messages { outline: 2px dashed #2196f3; outline-offset: -6px; }
+    .msg { margin-bottom: 15px; }
+    .msg-system { color: #999; font-size: 13px; text-align: center; }
+    .msg-text { background: #e3f2fd; padding: 9px 12px; border-radius: 8px; display: inline-block; max-width: min(100%, 74ch); word-break: break-word; overflow-wrap: anywhere; }
+    .msg-ip { font-size: 12px; color: #666; margin-bottom: 4px; }
+    /* Markdown 正文 */
+    .msg-text > :first-child { margin-top: 0; }
+    .msg-text > :last-child { margin-bottom: 0; }
+    .msg-text p { margin: 0 0 7px; }
+    .msg-text h1, .msg-text h2, .msg-text h3, .msg-text h4, .msg-text h5, .msg-text h6 { margin: 12px 0 6px; line-height: 1.3; font-weight: 600; }
+    .msg-text h1 { font-size: 19px; }
+    .msg-text h2 { font-size: 17px; }
+    .msg-text h3 { font-size: 15.5px; }
+    .msg-text h4, .msg-text h5, .msg-text h6 { font-size: 14px; }
+    .msg-text h1, .msg-text h2 { padding-bottom: 4px; border-bottom: 1px solid #bbdefb; }
+    .msg-text ul, .msg-text ol { margin: 4px 0 7px; padding-left: 22px; }
+    .msg-text li { margin: 2px 0; }
+    .msg-text li > ul, .msg-text li > ol { margin: 2px 0; }
+    .msg-text blockquote { margin: 6px 0; padding: 3px 0 3px 10px; border-left: 3px solid #90caf9; background: rgba(255,255,255,.55); border-radius: 0 4px 4px 0; color: #546878; }
+    .msg-text hr { border: none; border-top: 1px solid #bbdefb; margin: 9px 0; }
+    .msg-text a { color: #1565c0; text-decoration: underline; word-break: break-all; }
+    .msg-text s, .msg-text del { color: #708a9c; }
+    .msg-text .inline-code { background: rgba(255,255,255,.9); border: 1px solid #cfe1f5; border-radius: 4px; padding: 1px 5px; margin: 0 1px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: #b5305f; word-break: break-word; }
+    .msg-text .md-plain { margin: 4px 0; padding: 8px 10px; background: rgba(255,255,255,.7); border-radius: 6px; white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; }
+    /* 数学公式（KaTeX） */
+    .msg-text .math-inline .katex { font-size: 1.02em; }
+    .msg-text .math-block { margin: 8px 0; padding: 2px 0; overflow-x: auto; overflow-y: hidden; }
+    .msg-text .math-block .katex-display { margin: 0; }
+    .msg-text .math-block .katex { font-size: 1.05em; }
+    .msg-text .math-raw { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: #b5305f; word-break: break-all; }
+    .msg-text img.md-img { max-width: 100%; max-height: none; border-radius: 6px; display: block; margin: 4px 0; }
+    .md-table { border-collapse: collapse; margin: 6px 0; font-size: 13px; display: block; overflow-x: auto; max-width: 100%; }
+    .md-table th, .md-table td { border: 1px solid #c5d9ef; padding: 4px 9px; text-align: left; white-space: nowrap; }
+    .md-table th { background: rgba(255,255,255,.8); font-weight: 600; }
+    /* 代码块 */
+    .msg-code { border: 1px solid #d9dee5; border-radius: 8px; background: #f6f8fa; overflow: hidden; margin: 6px 0; }
+    .code-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 8px 3px 10px; background: #eaeef2; border-bottom: 1px solid #d9dee5; font-size: 12px; color: #57606a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .code-lang { text-transform: lowercase; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .code-btns { display: flex; gap: 4px; flex-shrink: 0; }
+    .code-btn { padding: 1px 8px; font-size: 12px; background: transparent; color: #57606a; border: 1px solid #cfd8e3; border-radius: 4px; font-family: inherit; line-height: 18px; }
+    .code-btn:hover { background: #dbe3ec; color: #24292f; }
+    .msg-code pre { margin: 0; padding: 10px 12px; overflow: auto; max-height: 420px; }
+    .msg-code code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 12.5px; line-height: 1.55; white-space: pre; tab-size: 4; color: #24292f; }
+    .tok-comment { color: #6a737d; font-style: italic; }
+    .tok-string { color: #0a5c36; }
+    .tok-number { color: #0550ae; }
+    .tok-keyword { color: #cf222e; }
+    .tok-builtin { color: #8250df; }
+    .tok-func { color: #6f42c1; }
+    .tok-prop { color: #0550ae; }
+    .tok-meta { color: #8250df; }
+    .tok-var { color: #953800; }
+    .tok-tag { color: #116329; }
+    .tok-attr { color: #0550ae; }
+    .tok-selector { color: #116329; }
+    .msg img { max-width: 300px; max-height: 300px; border-radius: 8px; cursor: zoom-in; display: block; }
+    .msg-file { background: #fff3e0; padding: 10px 14px; border-radius: 8px; cursor: pointer; display: inline-block; max-width: 70%; }
+    .msg-file:hover { background: #ffe0b2; }
+    .msg-file.expired, .msg-file.failed { background: #eeeeee; color: #999; cursor: default; }
+    .msg-file.expired:hover, .msg-file.failed:hover { background: #eeeeee; }
+    .file-size { color: #999; font-size: 12px; margin-left: 6px; }
+    .file-note { color: #2196f3; font-size: 12px; margin-left: 6px; }
+    .progress { width: 100%; height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; background: #2196f3; transition: width .15s; }
+    #input-area { border-top: 1px solid #ddd; padding: 15px; display: flex; gap: 10px; align-items: flex-end; }
+    #msg-input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font: inherit; line-height: 1.5; resize: none; min-height: 40px; max-height: 180px; overflow-y: auto; }
+    #input-area button { flex-shrink: 0; }
+    #hint { font-size: 12px; color: #999; padding: 0 15px 10px; }
+    button { padding: 10px 20px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1976d2; }
+    input[type="file"] { display: none; }
+    #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 1000; display: flex; flex-direction: column; padding: 16px 20px 20px; }
+    #lightbox.hidden { display: none; }
+    .lb-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: #fff; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+    .lb-bar button { padding: 6px 14px; font-size: 13px; }
+    .lb-close { background: rgba(255,255,255,.2); }
+    .lb-close:hover { background: rgba(255,255,255,.35); }
+    .lb-img { flex: 1; min-height: 0; width: 100%; object-fit: contain; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h3>在线用户</h3>
+    <div id="user-list"></div>
+  </div>
+  <div id="main">
+    <div id="messages"></div>
+    <div id="hint">支持 Markdown：标题 #、**粗体**、`行内代码`、``` 代码块、列表、引用、表格、链接 · 公式用 $…$ 或 $$…$$（KaTeX 本地渲染） · 粘贴图片直发 · Enter 发送，Shift+Enter 换行</div>
+    <div id="input-area">
+      <textarea id="msg-input" rows="1" placeholder="输入消息…支持 Markdown（Enter 发送，Shift+Enter 换行）"></textarea>
+      <input type="file" id="file-input" multiple />
+      <button id="file-btn" title="选择文件">📎</button>
+      <button id="send-btn">发送</button>
+    </div>
+  </div>
+
+  <div id="lightbox" class="hidden">
+    <div class="lb-bar">
+      <span class="lb-name"></span>
+      <button class="lb-download">下载</button>
+      <button class="lb-close">关闭 ✕</button>
+    </div>
+    <img class="lb-img" alt="" />
+  </div>
+
+  <script src="/node_modules/katex/dist/katex.min.js"></script>
+  <script>window.io = () => ({ on() {}, emit() {} });</script>
+  <!-- 页面逻辑按功能拆到 js/ 下，入口是 main.js；type=module 默认 defer，DOM 解析完才执行 -->
+  <script type="module" src="/js/main.js"></script>
+
+<script type="module">
+  import { appendMessage } from '/js/messages.js';
+  import { scrollBottom } from '/js/dom.js';
+  [["192.168.0.184","# 部署说明\n\n今天要做的三件事：\n\n1. 先 `npm install` 装依赖\n2. 改 **config.json** 里的地址\n3. 跑 `npm start`\n\n> 注意：改完配置要重启服务，否则不生效。\n\n| 环境 | 地址 | 备注 |\n|:---|:---|:---|\n| 测试 | 192.168.0.184:3000 | 常开 |\n| 生产 | 10.0.0.9:8080 | 仅内网 |\n\n参考 [官方文档](https://example.com/docs) 或直接看 https://github.com/x/y，斜体 *这样*，删除线 ~~这样~~。\n\n---\n\n以上。"],["192.168.0.184","代码块（写了语言就没有「文本」按钮）：\n\n```python\nimport json, time, websocket\n\nURL = \"ws://192.168.0.184:3000/stock-analysis-api/ws/index-realtime\"\n\ndef on_message(ws, message):\n    msg = json.loads(message)\n    if msg[\"type\"] == \"quote\":\n        print(msg[\"data\"][\"tradeDate\"], msg[\"data\"][\"latest_price\"])\n    elif msg[\"type\"] == \"ping\":\n        ws.send(\"ping\")\n\nwhile True:\n    ws = websocket.WebSocketApp(URL, on_message=on_message)\n    ws.run_forever(ping_interval=30)\n    time.sleep(5)  # 断线重连\n```"],["192.168.0.21","没写语言的围栏 + 直接粘贴的裸代码，都走自动识别：\n\n```\nnpm install\nnpm start\n```\n\n下面这段没写围栏：\n\nimport json, time, websocket # pip install websocket-client URL = \"ws://1.2.3.4:31000/ws\" def on_message(ws, message): msg = json.loads(message) if msg[\"type\"] == \"quote\": print(msg[\"data\"]) elif msg[\"type\"] == \"ping\": ws.send(\"ping\") time.sleep(5)"],["192.168.0.21","行内公式 $E=mc^2$、勾股定理 $a^2+b^2=c^2$。\n\n块级单行：\n\n$$E=mc^2$$\n\n块级跨行：\n\n$$\nr_t = \\frac{P_t - P_{t-1}}{P_{t-1}}, \\quad \\sigma = \\sqrt{\\frac{1}{n}\\sum_{i=1}^{n}(x_i-\\bar{x})^2}\n$$"],["192.168.0.33","矩阵和极限：\n\n$$\nA = \\begin{pmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{pmatrix}, \\quad \\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^n = e\n$$\n\n金额不该被当成公式：这个 $5 到 $10 之间，总价 $100 元。转义 \\$x+y\\$ 也还是文字。"],["192.168.0.33","表格里放公式：\n\n| 指标 | 定义 |\n|:---|:---|\n| 均值 | $\\mu = \\frac{1}{n}\\sum_{i=1}^{n} x_i$ |\n| 方差 | $\\sigma^2 = \\frac{1}{n}\\sum (x_i - \\mu)^2$ |\n\n- 列表里也可以：$\\alpha + \\beta$\n- 列表第二项\n\n  缩进两格就是嵌套列表"],["192.168.0.9","注入测试：正文里写 <b>标签<\/b> 和 <script>alert(document.cookie)<\/script>，还有 [点我](javascript:alert(1))，都只会当文字显示。\n\n代码块里的 $ 也不渲染：\n\n```bash\necho $HOME\n```\n\n坏公式不会崩：$\\frac{1}{$ 就这样。"],["192.168.0.9","普通一句话，带个换行\n第二行。行内提到 ``` 三个反引号也不会出问题。"]].forEach(([ip, content]) => appendMessage({ type: 'text', ip, content }));
+  scrollBottom();
+</script>
+</body>
+</html>

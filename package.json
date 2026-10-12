@@ -1,0 +1,16 @@
+{
+  "name": "lan-chat",
+  "version": "1.0.0",
+  "description": "局域网实时通信工具",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/render.test.js",
+    "preview": "node test/preview.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "katex": "^0.18.7",
+    "socket.io": "^4.7.5"
+  }
+}

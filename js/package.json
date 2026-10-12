@@ -1,0 +1,5 @@
+{
+  "//": "标记 js/ 是 ES Module 目录。浏览器按 <script type=\"module\"> 加载这些文件，Node（测试）也要知道它们是 ESM。这里不是独立的 npm 包。",
+  "type": "module",
+  "private": true
+}
